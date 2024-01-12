@@ -14,3 +14,8 @@ CREATE TABLE IF NOT EXISTS tabla_inferencias (
     imagen VARCHAR(255),
     estado ENUM(‘OK’, ‘KO’) NOT NULL
 );
+
+Creo estas carpetas:
+	inferencias: contendrá las imagenes captadas por la camara con formato "prefijo"timestamp.png
+	correcciones: imagenes corregidas con formato "prefijo"timestamp.png
+	
