@@ -54,6 +54,12 @@ class WebcamApp:
         self.image_titles = []  
 
         self.update_webcam()
+        
+        # Botón para salir de la aplicación
+        exit_btn = tk.Button(window, text="Salir", command=self.exit_application)
+        exit_btn.pack(side=tk.BOTTOM, pady=10)
+        
+        
 
     def update_webcam(self):
         ret, frame = self.cap.read()
@@ -109,6 +115,12 @@ class WebcamApp:
         window_viewer = tk.Toplevel(self.window)
         window_viewer.title("Image Viewer")
         ImageViewerApp(window_viewer, "Image Viewer", self)
+
+    def exit_application(self):
+        # Liberar la cámara al cerrar la aplicación
+        self.cap.release()
+        # Cerrar la aplicación
+        self.window.destroy()
 
 
 class ImageViewerApp:
