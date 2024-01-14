@@ -2,9 +2,6 @@ import cv2
 import tkinter as tk
 from PIL import Image, ImageTk
 from datetime import datetime
-import os
-from datetime import datetime
-import time
 import mysql.connector
 
 # Conexión a la base de datos
@@ -39,7 +36,6 @@ def insertar_registro(nombre_archivo, estado):
     print(f"Nombre de archivo: {nombre_archivo}")
     print(f"Estado: {estado}")
 
-    
     # Insertar el registro en la base de datos
     insert_sql = """
     INSERT INTO tabla_imagenes (timestamp, nombre_archivo, estado) VALUES (%s, %s, %s)
@@ -50,7 +46,73 @@ def insertar_registro(nombre_archivo, estado):
     # Confirmar la transacción
     conexion.commit()
 
- 
+class ImageViewerApp:
+    def __init__(self, window, window_title):
+        self.window = window
+        self.window.title(window_title)
+
+        # Conexión a la base de datos
+        self.connection = mysql.connector.connect(
+            host="localhost",
+            user="operario",
+            password="oper24",
+            database="bbdd_imagenes"
+        )
+        self.cursor = self.connection.cursor()
+
+        # Obtener la última imagen de la tabla_inferencias
+        self.cursor.execute("SELECT nombre_archivo, timestamp FROM tabla_imagenes ORDER BY timestamp DESC LIMIT 1")
+        self.current_image = self.cursor.fetchone()
+
+        # Mostrar la última imagen y su título
+        self.show_image()
+
+        # Botones Atrás y Adelante para navegar a través de las imágenes
+        btn_atras = tk.Button(window, text="Atrás", command=self.show_previous_image)
+        btn_atras.pack(side=tk.LEFT, padx=10)
+
+        btn_adelante = tk.Button(window, text="Adelante", command=self.show_next_image)
+        btn_adelante.pack(side=tk.RIGHT, padx=10)
+
+    def show_image(self):
+        if self.current_image:
+            nombre_archivo, timestamp = self.current_image
+
+            # Cargar y mostrar la imagen
+            img = Image.open(nombre_archivo)
+            img = img.resize((640, 480))  # Ajustar el tamaño según sea necesario
+            img_tk = ImageTk.PhotoImage(img)
+
+            # Mostrar la imagen en la ventana
+            if hasattr(self, "label_imagen"):
+                self.label_imagen.destroy()
+            self.label_imagen = tk.Label(self.window, image=img_tk)
+            self.label_imagen.image = img_tk  # Conservar una referencia para evitar la recolección de basura
+            self.label_imagen.pack()
+
+            # Mostrar el título (timestamp) debajo de la imagen
+            if hasattr(self, "label_titulo"):
+                self.label_titulo.destroy()
+            self.label_titulo = tk.Label(self.window, text=timestamp)
+            self.label_titulo.pack()
+
+    def show_previous_image(self):
+        # Obtener el registro anterior de la tabla_inferencias
+        self.cursor.execute("SELECT nombre_archivo, timestamp FROM tabla_imagenes WHERE timestamp < %s ORDER BY timestamp DESC LIMIT 1", (self.current_image[1],))
+        previous_image = self.cursor.fetchone()
+
+        if previous_image:
+            self.current_image = previous_image
+            self.show_image()
+
+    def show_next_image(self):
+        # Obtener el registro posterior de la tabla_inferencias
+        self.cursor.execute("SELECT nombre_archivo, timestamp FROM tabla_imagenes WHERE timestamp > %s ORDER BY timestamp ASC LIMIT 1", (self.current_image[1],))
+        next_image = self.cursor.fetchone()
+
+        if next_image:
+            self.current_image = next_image
+            self.show_image()
 
 class WebcamApp:
     def __init__(self, window, window_title):
@@ -75,6 +137,10 @@ class WebcamApp:
         # Lista para almacenar las últimas tres imágenes capturadas
         self.last_captured_images = []
         self.image_titles = []  # Lista para almacenar los títulos de las imágenes
+
+        # Botón para revisar las imágenes capturadas
+        review_btn = tk.Button(window, text="Revisar", command=self.review_images)
+        review_btn.pack(pady=10)
 
         # Actualizar la imagen de la webcam en el lienzo
         self.update_webcam()
@@ -115,7 +181,7 @@ class WebcamApp:
             # Guardar la imagen
             cv2.imwrite(nombre_archivo, frame)
     
-            #Añadir imagen a la BBDD
+            # Añadir imagen a la BBDD
             estado = "OK"
             insertar_registro(nombre_archivo, estado)
 
@@ -146,11 +212,22 @@ class WebcamApp:
             # Mostrar el título debajo de cada imagen
             self.canvas_images.create_text(x_offset + 10, 160, anchor=tk.W, text=title)
 
+    def review_images(self):
+        # Crear una nueva ventana para revisar las imágenes
+        revisar_ventana = tk.Toplevel(self.window)
+        revisar_ventana.title("Revisar Imágenes")
+
+        # Crear la instancia del visor de imágenes en la nueva ventana
+        image_viewer = ImageViewerApp(revisar_ventana, "Image Viewer")
+
 if __name__ == "__main__":
     root = tk.Tk()
-    app = WebcamApp(root, "Webcam App")
+
+    # Crear una instancia de la aplicación de la cámara
+    app_webcam = WebcamApp(root, "Webcam App")
+
     root.mainloop()
 
-    # Liberar la cámara al cerrar la aplicación
-    app.cap.release()
+    # Liberar la cámara al cerrar la aplicación de la cámara
+    app_webcam.cap.release()
 
