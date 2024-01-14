@@ -37,9 +37,19 @@ class WebcamApp:
         self.window.title(window_title)
 
         self.cap = cv2.VideoCapture(0)
+        # Título de la imagen en directo
+        self.label_titulo_webcam = tk.Label(self.window, text="IMAGEN EN DIRECTO", font=("Helvetica", 14))
+        self.label_titulo_webcam.pack()
+
+        # Lienzo para mostrar la imagen de la webcam
         self.canvas_webcam = tk.Canvas(window, width=640, height=480)
         self.canvas_webcam.pack()
 
+           # Título de las últimas imágenes capturadas
+        self.label_titulo_imagenes = tk.Label(self.window, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14))
+        self.label_titulo_imagenes.pack()
+
+        # Lienzo para mostrar las últimas imágenes capturadas
         self.canvas_images = tk.Canvas(window, width=640, height=240)
         self.canvas_images.pack()
 
@@ -150,22 +160,36 @@ class ImageViewerApp:
         if self.current_image:
             nombre_archivo, timestamp = self.current_image
 
-            img = Image.open(nombre_archivo)
-            img = img.resize((640, 480))
-            img_tk = ImageTk.PhotoImage(img)
+            # Obtener el estado (clasificación) de la imagen desde la base de datos
+            self.cursor.execute("SELECT estado FROM tabla_imagenes WHERE nombre_archivo = %s", (nombre_archivo,))
+            estado_result = self.cursor.fetchone()
 
-            if hasattr(self, "label_imagen"):
-                self.label_imagen.destroy()
-            self.label_imagen = tk.Label(self.window, image=img_tk)
-            self.label_imagen.image = img_tk
-            self.label_imagen.pack()
+            if estado_result:
+                estado = estado_result[0]
 
-            if hasattr(self, "label_titulo"):
-                self.label_titulo.destroy()
-            self.label_titulo = tk.Label(self.window, text=timestamp)
-            self.label_titulo.pack()
+                img = Image.open(nombre_archivo)
+                img = img.resize((640, 480))
+                img_tk = ImageTk.PhotoImage(img)
+
+                if hasattr(self, "label_imagen"):
+                    self.label_imagen.destroy()
+                self.label_imagen = tk.Label(self.window, image=img_tk)
+                self.label_imagen.image = img_tk
+                self.label_imagen.pack()
+
+                if hasattr(self, "label_titulo"):
+                    self.label_titulo.destroy()
+                self.label_titulo = tk.Label(self.window, text=timestamp)
+                self.label_titulo.pack()
+
+                # Mostrar la clasificación debajo de la imagen
+                if hasattr(self, "label_clasificacion"):
+                    self.label_clasificacion.destroy()
+                self.label_clasificacion = tk.Label(self.window, text=f"Clasificación = {estado}")
+                self.label_clasificacion.pack()
 
     def show_previous_image(self):
+        # Fetch y mostrar la imagen anterior
         self.cursor.execute(
             "SELECT nombre_archivo, timestamp FROM tabla_imagenes WHERE timestamp < %s ORDER BY timestamp DESC LIMIT 1",
             (self.current_image[1],))
@@ -175,7 +199,11 @@ class ImageViewerApp:
             self.current_image = previous_image
             self.show_image()
 
+        # Limpiar el cursor
+        self.cursor.fetchall()
+
     def show_next_image(self):
+        # Fetch y mostrar la siguiente imagen
         self.cursor.execute(
             "SELECT nombre_archivo, timestamp FROM tabla_imagenes WHERE timestamp > %s ORDER BY timestamp ASC LIMIT 1",
             (self.current_image[1],))
@@ -184,6 +212,9 @@ class ImageViewerApp:
         if next_image:
             self.current_image = next_image
             self.show_image()
+
+        # Limpiar el cursor
+        self.cursor.fetchall()
 
     def close_window(self):
         self.window.destroy()
