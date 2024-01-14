@@ -37,6 +37,11 @@ class WebcamApp:
         self.window.title(window_title)
 
         self.cap = cv2.VideoCapture(0)
+        
+        # ... (Inicialización de la aplicación)
+        self.last_captured_images = []  # Para almacenar imágenes capturadas y su metadata
+        
+        
         # Título de la imagen en directo
         self.label_titulo_webcam = tk.Label(self.window, text="IMAGEN EN DIRECTO", font=("Helvetica", 14))
         self.label_titulo_webcam.pack()
@@ -97,21 +102,30 @@ class WebcamApp:
 
             cv2.imwrite(nombre_archivo, frame)
 
-            estado = "OK"
+            estado = "OK"  # O cualquier lógica para determinar el estado
             insertar_registro(nombre_archivo, estado)
 
             img = img.resize((int(img.width * 0.25), int(img.height * 0.25)))
             img_tk = ImageTk.PhotoImage(image=img)
 
-            self.last_captured_images.append((img_tk, timestamp))
+            self.last_captured_images.append((img_tk, timestamp, estado))  # Añadir estado
 
             if len(self.last_captured_images) > 3:
                 self.last_captured_images.pop(0)
 
             self.update_images_canvas()
 
+    
     def update_images_canvas(self):
         self.canvas_images.delete("all")
+
+        for i, (img_tk, title, estado) in enumerate(self.last_captured_images):
+            x_offset = i * 213  # Adjust this value if needed for spacing
+            self.canvas_images.create_image(x_offset, 0, anchor=tk.NW, image=img_tk)
+            # Display the timestamp
+            self.canvas_images.create_text(x_offset + 10, 160, anchor=tk.W, text=title)
+            # Display the estado below the timestamp
+            self.canvas_images.create_text(x_offset + 10, 180, anchor=tk.W, text=f"Estado: {estado}")
 
         for i, (img_tk, title) in enumerate(self.last_captured_images):
             x_offset = i * 213
@@ -129,6 +143,8 @@ class WebcamApp:
     def exit_application(self):
         # Liberar la cámara al cerrar la aplicación
         self.cap.release()
+        # Cerrar la conexión a la base de datos
+        conexion.close()
         # Cerrar la aplicación
         self.window.destroy()
 
@@ -189,7 +205,10 @@ class ImageViewerApp:
                 self.label_clasificacion.pack()
 
     def show_previous_image(self):
-        # Fetch y mostrar la imagen anterior
+        # Asegúrate de que todos los resultados anteriores han sido leídos
+        self.cursor.fetchall()
+
+        # Ejecutar la consulta para obtener la imagen anterior
         self.cursor.execute(
             "SELECT nombre_archivo, timestamp FROM tabla_imagenes WHERE timestamp < %s ORDER BY timestamp DESC LIMIT 1",
             (self.current_image[1],))
@@ -199,11 +218,11 @@ class ImageViewerApp:
             self.current_image = previous_image
             self.show_image()
 
-        # Limpiar el cursor
+    def show_next_image(self):
+        # Asegúrate de que todos los resultados anteriores han sido leídos
         self.cursor.fetchall()
 
-    def show_next_image(self):
-        # Fetch y mostrar la siguiente imagen
+        # Ejecutar la consulta para obtener la siguiente imagen
         self.cursor.execute(
             "SELECT nombre_archivo, timestamp FROM tabla_imagenes WHERE timestamp > %s ORDER BY timestamp ASC LIMIT 1",
             (self.current_image[1],))
@@ -212,9 +231,6 @@ class ImageViewerApp:
         if next_image:
             self.current_image = next_image
             self.show_image()
-
-        # Limpiar el cursor
-        self.cursor.fetchall()
 
     def close_window(self):
         self.window.destroy()
