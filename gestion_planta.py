@@ -50,12 +50,22 @@ class WebcamApp:
         self.canvas_webcam = tk.Canvas(window, width=640, height=480)
         self.canvas_webcam.pack()
 
-           # Título de las últimas imágenes capturadas
-        self.label_titulo_imagenes = tk.Label(self.window, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14))
+        # Adding blank line separators
+        for _ in range(3):
+            separator = tk.Label(window, text="", height=1)  # Height=1 for a single blank line
+            separator.pack()
+
+
+        # Título de las últimas imágenes capturadas
+        self.label_titulo_imagenes = tk.Label(window, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14))
         self.label_titulo_imagenes.pack()
 
+        # Frame for the canvas
+        frame_canvas = tk.Frame(window, bd=2, relief=tk.SUNKEN)
+        frame_canvas.pack()
+
         # Lienzo para mostrar las últimas imágenes capturadas
-        self.canvas_images = tk.Canvas(window, width=640, height=240)
+        self.canvas_images = tk.Canvas(frame_canvas, width=640, height=240)
         self.canvas_images.pack()
 
         self.capture_btn = tk.Button(window, text="Capturar", command=self.capture_image)
@@ -122,12 +132,10 @@ class WebcamApp:
         for i, (img_tk, title, estado) in enumerate(self.last_captured_images):
             x_offset = i * 213  # Adjust this value if needed for spacing
             self.canvas_images.create_image(x_offset, 0, anchor=tk.NW, image=img_tk)
-            # Display the timestamp
             self.canvas_images.create_text(x_offset + 10, 160, anchor=tk.W, text=title)
-            # Display the estado below the timestamp
             self.canvas_images.create_text(x_offset + 10, 180, anchor=tk.W, text=f"Estado: {estado}")
 
-        for i, (img_tk, title) in enumerate(self.last_captured_images):
+        for i, (img_tk, title, estado) in enumerate(self.last_captured_images):
             x_offset = i * 213
             self.canvas_images.create_image(x_offset, 0, anchor=tk.NW, image=img_tk)
             self.canvas_images.create_text(x_offset + 10, 160, anchor=tk.W, text=title)
