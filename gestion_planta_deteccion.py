@@ -288,10 +288,11 @@ class ImageViewerApp:
     def create_correction_table(self):
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS tabla_correcciones (
+            id INT AUTO_INCREMENT PRIMARY KEY,
             timestamp_original DATETIME,
             timestamp_correccion DATETIME,
-            estado_original VARCHAR(255),
-            estado_corregido VARCHAR(255),
+            estado_original ENUM("OK", "KO") NOT NULL,
+            estado_corregido ENUM("OK", "KO") NOT NULL,
             nombre_fichero VARCHAR(255)
         )
         """
