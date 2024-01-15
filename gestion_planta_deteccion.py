@@ -196,15 +196,23 @@ class WebcamApp:
         self.canvas_images.delete("all")
 
         for i, (img_tk, title, estado) in enumerate(self.last_captured_images):
-            x_offset = i * 213  # Adjust this value if needed for spacing
+            x_offset = i * 213  # Ajusta este valor según sea necesario para el espaciado
+
+            # Coordenadas para el marco
+            x0, y0 = x_offset, 0
+            x1, y1 = x_offset + img_tk.width(), img_tk.height()
+
+            # Crear el marco dependiendo del estado
+            if estado == "KO":
+                self.canvas_images.create_rectangle(x0, y0, x1, y1, outline="red", width=8)
+            else:  # Suponiendo que el otro estado es "OK"
+                self.canvas_images.create_rectangle(x0, y0, x1, y1, outline="blue", width=8)
+
+            # Mostrar la imagen
             self.canvas_images.create_image(x_offset, 0, anchor=tk.NW, image=img_tk)
+            # Mostrar el título y el estado
             self.canvas_images.create_text(x_offset + 10, 160, anchor=tk.W, text=title)
             self.canvas_images.create_text(x_offset + 10, 180, anchor=tk.W, text=f"Estado: {estado}")
-
-        for i, (img_tk, title, estado) in enumerate(self.last_captured_images):
-            x_offset = i * 213
-            self.canvas_images.create_image(x_offset, 0, anchor=tk.NW, image=img_tk)
-            self.canvas_images.create_text(x_offset + 10, 160, anchor=tk.W, text=title)
 
     def open_image_viewer(self):
         # Ocultar la ventana actual
@@ -271,7 +279,7 @@ class ImageViewerApp:
         self.radio_ko.pack()
 
         # Botón para enviar la selección
-        self.btn_submit = tk.Button(window, text="Enviar", command=self.submit_classification)
+        self.btn_submit = tk.Button(window, text="Corregir", command=self.submit_classification)
         self.btn_submit.pack(pady=10)
 
 
