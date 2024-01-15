@@ -1,5 +1,7 @@
 import cv2
 import tkinter as tk
+from tkinter import ttk  # Import ttk module for styled widgets
+
 from PIL import Image, ImageTk
 from datetime import datetime
 import mysql.connector
@@ -8,6 +10,7 @@ import grpc
 from edge_agent_pb2_grpc import EdgeAgentStub
 import edge_agent_pb2 as pb2
 import time
+from playsound import playsound
 
 # Conexión a la base de datos
 conexion = mysql.connector.connect(
@@ -74,11 +77,6 @@ def detect_anomalies(stub, model_name, image_path):
             ) 
         )
     )
-    if detect_anomalies_response.detect_anomaly_result.is_anomalous:
-     	print ("COCHE MALO")
-    else:
-    	print ("COCHE BUENO") 
-    #print(f"Image is anomalous - {detect_anomalies_response.detect_anomaly_result.is_anomalous}")
     return detect_anomalies_response.detect_anomaly_result
 
 
@@ -89,55 +87,55 @@ class WebcamApp:
     def __init__(self, window, window_title):
         self.window = window
         self.window.title(window_title)
+        self.window.configure(background='#f0f0f0')  # Set a light grey background color
         self.stub = stub 
 
         self.cap = cv2.VideoCapture(0)
         
-        # ... (Inicialización de la aplicación)
-        self.last_captured_images = []  # Para almacenar imágenes capturadas y su metadata
-        
-        
-        # Título de la imagen en directo
-        self.label_titulo_webcam = tk.Label(self.window, text="IMAGEN EN DIRECTO", font=("Helvetica", 14))
+        # Initialize the list to store the last captured images
+        self.last_captured_images = []
+             
+        # Layout with frames for better organization
+        top_frame = tk.Frame(self.window, bg='#f0f0f0')
+        top_frame.pack(pady=10)
+
+        self.label_titulo_webcam = tk.Label(top_frame, text="IMAGEN EN DIRECTO", font=("Helvetica", 14), bg='#f0f0f0')
         self.label_titulo_webcam.pack()
 
-        # Lienzo para mostrar la imagen de la webcam
-        self.canvas_webcam = tk.Canvas(window, width=640, height=480)
+        self.canvas_webcam = tk.Canvas(top_frame, width=640, height=480)
         self.canvas_webcam.pack()
+  
+        # Frame for buttons
+        button_frame = tk.Frame(self.window, bg='#f0f0f0')
+        button_frame.pack(pady=10)
 
-        # Adding blank line separators
-        for _ in range(3):
-            separator = tk.Label(window, text="", height=1)  # Height=1 for a single blank line
-            separator.pack()
+        # Using ttk buttons for a better appearance
+        self.capture_btn = ttk.Button(button_frame, text="Capturar", command=self.capture_image)
+        self.capture_btn.pack(side=tk.LEFT, padx=5)
 
+        self.btn_revisar = ttk.Button(button_frame, text="Revisar", command=self.open_image_viewer)
+        self.btn_revisar.pack(side=tk.RIGHT, padx=5)
 
-        # Título de las últimas imágenes capturadas
-        self.label_titulo_imagenes = tk.Label(window, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14))
+        # Status label for system status
+        self.status_label = tk.Label(self.window, text="Estado del sistema: OK", fg="green", bg='#f0f0f0')
+        self.status_label.pack(pady=10)
+
+        # Frame for displaying last captured images
+        image_frame = tk.Frame(self.window, bg='#f0f0f0')
+        image_frame.pack(pady=10)
+
+        self.label_titulo_imagenes = tk.Label(image_frame, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14), bg='#f0f0f0')
         self.label_titulo_imagenes.pack()
 
-        # Frame for the canvas
-        frame_canvas = tk.Frame(window, bd=2, relief=tk.SUNKEN)
-        frame_canvas.pack()
-
-        # Lienzo para mostrar las últimas imágenes capturadas
-        self.canvas_images = tk.Canvas(frame_canvas, width=640, height=240)
+        self.canvas_images = tk.Canvas(image_frame, width=640, height=240)
         self.canvas_images.pack()
 
-        self.capture_btn = tk.Button(window, text="Capturar", command=self.capture_image)
-        self.capture_btn.pack(pady=10)
-
-        self.btn_revisar = tk.Button(window, text="Revisar", command=self.open_image_viewer)
-        self.btn_revisar.pack(pady=10)
-
-        # Lista para almacenar las últimas tres imágenes capturadas
-        self.last_captured_images = []
-        self.image_titles = []  
-
-        self.update_webcam()
-        
-        # Botón para salir de la aplicación
-        exit_btn = tk.Button(window, text="Salir", command=self.exit_application)
+        # Exit button with improved styling
+        exit_btn = ttk.Button(self.window, text="Salir", command=self.exit_application)
         exit_btn.pack(side=tk.BOTTOM, pady=10)
+
+        # Initialization for webcam update
+        self.update_webcam()
         
         
 
@@ -175,6 +173,7 @@ class WebcamApp:
             # Usar detect_anomalies_result para verificar si hay una anomalía        
             if detect_anomalies_result.is_anomalous:
                 estado = "KO"
+                playsound('/home/ppt/AppGestion/beep-02.mp3')
             else:
                 estado = "OK"
 
@@ -312,12 +311,6 @@ class ImageViewerApp:
 
         self.cursor.execute(insert_sql, data)
         self.conexion.commit()
-
-        print(f"Clasificación corregida: {selected_value}")
-        print(f"Nombre del archivo: {self.current_nombre_archivo}")
-        print(f"Timestamp original: {self.current_timestamp}")
-        print(f"Estado original: {self.current_estado}")
-        print(f"Timestamp de corrección: {timestamp_correccion}")
 
     def show_image(self):
         if self.current_image:
