@@ -231,6 +231,14 @@ class ImageViewerApp:
         self.webcam_app = webcam_app
         self.conexion = conexion
         self.cursor = self.conexion.cursor()
+        
+        self.current_estado = None
+        self.current_nombre_archivo = None
+        self.current_timestamp = None
+
+        # Crear la tabla tabla_correcciones si no existe
+        self.create_correction_table()
+
 
         try:
             self.cursor.execute("SELECT nombre_archivo, timestamp FROM tabla_imagenes ORDER BY timestamp DESC LIMIT 1")
@@ -271,47 +279,81 @@ class ImageViewerApp:
         btn_cerrar = tk.Button(window, text="Cerrar", command=self.close_window)
         btn_cerrar.pack(side=tk.BOTTOM, pady=10)
 
+    def create_correction_table(self):
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS tabla_correcciones (
+            timestamp_original DATETIME,
+            timestamp_correccion DATETIME,
+            estado_original VARCHAR(255),
+            estado_corregido VARCHAR(255),
+            nombre_fichero VARCHAR(255)
+        )
+        """
+        self.cursor.execute(create_table_sql)
+        self.conexion.commit()
+    
+    
     def submit_classification(self):
-        # Obtener el valor seleccionado
         selected_value = self.classification_var.get()
-        print(f"Clasificación seleccionada: {selected_value}")
-        # Aquí puedes agregar el código para manejar la clasificación seleccionada
+        timestamp_correccion = datetime.now()
 
-        # Por ejemplo, actualizar la clasificación en la base de datos
-        # Puedes usar self.current_image para obtener la referencia de la imagen actual
+        insert_sql = """
+        INSERT INTO tabla_correcciones (timestamp_original, timestamp_correccion, estado_original, estado_corregido, nombre_fichero) 
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        data = (self.current_timestamp, timestamp_correccion, self.current_estado, selected_value, self.current_nombre_archivo)
 
+        self.cursor.execute(insert_sql, data)
+        self.conexion.commit()
+
+        print(f"Clasificación corregida: {selected_value}")
+        print(f"Nombre del archivo: {self.current_nombre_archivo}")
+        print(f"Timestamp original: {self.current_timestamp}")
+        print(f"Estado original: {self.current_estado}")
+        print(f"Timestamp de corrección: {timestamp_correccion}")
 
     def show_image(self):
         if self.current_image:
-            nombre_archivo, timestamp = self.current_image
+            self.current_nombre_archivo, self.current_timestamp = self.current_image
 
             # Obtener el estado (clasificación) de la imagen desde la base de datos
-            self.cursor.execute("SELECT estado FROM tabla_imagenes WHERE nombre_archivo = %s", (nombre_archivo,))
+            self.cursor.execute("SELECT estado FROM tabla_imagenes WHERE nombre_archivo = %s", (self.current_nombre_archivo,))
             estado_result = self.cursor.fetchone()
 
             if estado_result:
-                estado = estado_result[0]
+                self.current_estado = estado_result[0]
 
-                img = Image.open(nombre_archivo)
+                img = Image.open(self.current_nombre_archivo)
                 img = img.resize((640, 480))
                 img_tk = ImageTk.PhotoImage(img)
 
                 if hasattr(self, "label_imagen"):
                     self.label_imagen.destroy()
                 self.label_imagen = tk.Label(self.window, image=img_tk)
-                self.label_imagen.image = img_tk
+                self.label_imagen.image = img_tk  # Mantener una referencia.
                 self.label_imagen.pack()
 
                 if hasattr(self, "label_titulo"):
                     self.label_titulo.destroy()
-                self.label_titulo = tk.Label(self.window, text=timestamp)
+                self.label_titulo = tk.Label(self.window, text=self.current_timestamp)
                 self.label_titulo.pack()
 
                 # Mostrar la clasificación debajo de la imagen
                 if hasattr(self, "label_clasificacion"):
                     self.label_clasificacion.destroy()
-                self.label_clasificacion = tk.Label(self.window, text=f"Clasificación = {estado}")
+                self.label_clasificacion = tk.Label(self.window, text=f"Clasificación = {self.current_estado}")
                 self.label_clasificacion.pack()
+        else:
+            # Manejar el caso en que no hay imagen actual.
+            if hasattr(self, "label_imagen"):
+                self.label_imagen.destroy()
+            self.label_imagen = tk.Label(self.window, text="No hay imagen disponible.")
+            self.label_imagen.pack()
+
+            if hasattr(self, "label_titulo"):
+                self.label_titulo.destroy()
+            if hasattr(self, "label_clasificacion"):
+                self.label_clasificacion.destroy()
 
     def show_previous_image(self):
         # Asegúrate de que todos los resultados anteriores han sido leídos
