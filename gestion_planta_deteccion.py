@@ -229,11 +229,15 @@ class ImageViewerApp:
         self.window.title(window_title)
 
         self.webcam_app = webcam_app
+        self.conexion = conexion
+        self.cursor = self.conexion.cursor()
 
-        self.cursor = conexion.cursor()
-
-        self.cursor.execute("SELECT nombre_archivo, timestamp FROM tabla_imagenes ORDER BY timestamp DESC LIMIT 1")
-        self.current_image = self.cursor.fetchone()
+        try:
+            self.cursor.execute("SELECT nombre_archivo, timestamp FROM tabla_imagenes ORDER BY timestamp DESC LIMIT 1")
+            self.current_image = self.cursor.fetchone()
+        except Exception as e:
+            print(f"Error querying database: {e}")
+            self.current_image = None
 
         self.show_image()
 
@@ -243,8 +247,39 @@ class ImageViewerApp:
         btn_adelante = tk.Button(window, text="Adelante", command=self.show_next_image)
         btn_adelante.pack(side=tk.RIGHT, padx=10)
 
+        # Título para el formulario de corrección de clasificación
+        self.label_form_title = tk.Label(window, text="Corrección clasificación:", font=("Helvetica", 12))
+        self.label_form_title.pack()
+
+        # Variable para almacenar la selección del radio button
+        self.classification_var = tk.StringVar(value="OK")
+
+        # Radio button para "OK"
+        self.radio_ok = tk.Radiobutton(window, text="OK", variable=self.classification_var, value="OK")
+        self.radio_ok.pack()
+
+        # Radio button para "KO"
+        self.radio_ko = tk.Radiobutton(window, text="KO", variable=self.classification_var, value="KO")
+        self.radio_ko.pack()
+
+        # Botón para enviar la selección
+        self.btn_submit = tk.Button(window, text="Enviar", command=self.submit_classification)
+        self.btn_submit.pack(pady=10)
+
+
+
         btn_cerrar = tk.Button(window, text="Cerrar", command=self.close_window)
         btn_cerrar.pack(side=tk.BOTTOM, pady=10)
+
+    def submit_classification(self):
+        # Obtener el valor seleccionado
+        selected_value = self.classification_var.get()
+        print(f"Clasificación seleccionada: {selected_value}")
+        # Aquí puedes agregar el código para manejar la clasificación seleccionada
+
+        # Por ejemplo, actualizar la clasificación en la base de datos
+        # Puedes usar self.current_image para obtener la referencia de la imagen actual
+
 
     def show_image(self):
         if self.current_image:
