@@ -37,7 +37,8 @@ def insertar_registro(nombre_archivo, estado):
 
 # Función arrancar modelo
 
-model_component_name = "CM-coches"
+model_name = "CM-coches"
+model_component_name = model_name 
 
 def start_model_if_needed(stub, model_name):
     # Starting model if needed.
@@ -235,7 +236,6 @@ class ImageViewerApp:
     def __init__(self, window, window_title, webcam_app):
         self.window = window
         self.window.title(window_title)
-
         self.webcam_app = webcam_app
         self.conexion = conexion
         self.cursor = self.conexion.cursor()
@@ -247,6 +247,8 @@ class ImageViewerApp:
         # Crear la tabla tabla_correcciones si no existe
         self.create_correction_table()
 
+        # Agregar elementos de UI y organizarlos
+        self.setup_ui()
 
         try:
             self.cursor.execute("SELECT nombre_archivo, timestamp FROM tabla_imagenes ORDER BY timestamp DESC LIMIT 1")
@@ -257,34 +259,30 @@ class ImageViewerApp:
 
         self.show_image()
 
-        btn_atras = tk.Button(window, text="Atrás", command=self.show_previous_image)
+    def setup_ui(self):
+        # Agrega aquí la creación y disposición de tus botones y otros elementos de UI
+
+        btn_atras = tk.Button(self.window, text="Atrás", command=self.show_previous_image)
         btn_atras.pack(side=tk.LEFT, padx=10)
 
-        btn_adelante = tk.Button(window, text="Adelante", command=self.show_next_image)
+        btn_adelante = tk.Button(self.window, text="Adelante", command=self.show_next_image)
         btn_adelante.pack(side=tk.RIGHT, padx=10)
 
-        # Título para el formulario de corrección de clasificación
-        self.label_form_title = tk.Label(window, text="Corrección clasificación:", font=("Helvetica", 12))
+        self.label_form_title = tk.Label(self.window, text="Corrección clasificación:", font=("Helvetica", 12))
         self.label_form_title.pack()
 
-        # Variable para almacenar la selección del radio button
         self.classification_var = tk.StringVar(value="OK")
 
-        # Radio button para "OK"
-        self.radio_ok = tk.Radiobutton(window, text="OK", variable=self.classification_var, value="OK")
+        self.radio_ok = tk.Radiobutton(self.window, text="OK", variable=self.classification_var, value="OK")
         self.radio_ok.pack()
 
-        # Radio button para "KO"
-        self.radio_ko = tk.Radiobutton(window, text="KO", variable=self.classification_var, value="KO")
+        self.radio_ko = tk.Radiobutton(self.window, text="KO", variable=self.classification_var, value="KO")
         self.radio_ko.pack()
 
-        # Botón para enviar la selección
-        self.btn_submit = tk.Button(window, text="Corregir", command=self.submit_classification)
+        self.btn_submit = tk.Button(self.window, text="Corregir", command=self.submit_classification)
         self.btn_submit.pack(pady=10)
 
-
-
-        btn_cerrar = tk.Button(window, text="Cerrar", command=self.close_window)
+        btn_cerrar = tk.Button(self.window, text="Cerrar", command=self.close_window)
         btn_cerrar.pack(side=tk.BOTTOM, pady=10)
 
     def create_correction_table(self):
@@ -370,7 +368,7 @@ class ImageViewerApp:
         # Ejecutar la consulta para obtener la imagen anterior
         self.cursor.execute(
             "SELECT nombre_archivo, timestamp FROM tabla_imagenes WHERE timestamp < %s ORDER BY timestamp DESC LIMIT 1",
-            (self.current_image[1],))
+            (self.current_timestamp,))
         previous_image = self.cursor.fetchone()
 
         if previous_image:
@@ -381,15 +379,16 @@ class ImageViewerApp:
         # Asegúrate de que todos los resultados anteriores han sido leídos
         self.cursor.fetchall()
 
-        # Ejecutar la consulta para obtener la siguiente imagen
+         # Ejecutar la consulta para obtener la siguiente imagen
         self.cursor.execute(
             "SELECT nombre_archivo, timestamp FROM tabla_imagenes WHERE timestamp > %s ORDER BY timestamp ASC LIMIT 1",
-            (self.current_image[1],))
+            (self.current_timestamp,))
         next_image = self.cursor.fetchone()
 
         if next_image:
             self.current_image = next_image
             self.show_image()
+
 
     def close_window(self):
         self.window.destroy()
@@ -398,12 +397,28 @@ class ImageViewerApp:
         #channel.close()
         # Mostrar la ventana principal de la aplicación (WebcamApp)
         self.webcam_app.window.deiconify()
+        stop_model()
 
+
+def stop_model():
+    
+    #channel = grpc.insecure_channel("unix:///tmp/aws.iot.lookoutvision.EdgeAgent.sock")
+    #stub = EdgeAgentStub(channel)
+    try:
+        result = stub.StopModel(pb2.StopModelRequest(model_component=model_component_name))
+        print(result)
+    except grpc.RpcError as e:
+        print(f"Error invoking StopModel: {e}")
+    
+    
 
 if __name__ == "__main__":
+    
     # Creating stub.
     channel = grpc.insecure_channel("unix:///tmp/aws.iot.lookoutvision.EdgeAgent.sock")
     stub = EdgeAgentStub(channel)
+    
+    start_model_if_needed(stub, model_name)
     
     root = tk.Tk()
     app_webcam = WebcamApp(root, "Webcam App")
