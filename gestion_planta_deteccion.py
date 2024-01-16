@@ -230,6 +230,7 @@ class WebcamApp:
         # Cerrar la aplicación
         self.window.destroy()
         channel.close()  # Cierra el canal al salir de la aplicación
+        stop_model()
 
 class ImageViewerApp:
     def __init__(self, window, window_title, webcam_app):
@@ -391,7 +392,6 @@ class ImageViewerApp:
         #channel.close()
         # Mostrar la ventana principal de la aplicación (WebcamApp)
         self.webcam_app.window.deiconify()
-        stop_model()
 
 
 def stop_model():
