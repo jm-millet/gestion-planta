@@ -117,16 +117,22 @@ class WebcamApp:
         self.canvas_webcam = tk.Canvas(top_frame, width=320, height=240)
         self.canvas_webcam.pack()
   
-        # Frame para los botones
+        self.motion_detection_enabled = tk.BooleanVar(value=False)  # Variable para el estado de detección de movimiento
+
+        # Frame para los botones y la casilla de selección
         button_frame = tk.Frame(self.window, bg='#f0f0f0')
         button_frame.pack(pady=10)
 
-        # Botones con un aspecto mejorado usando ttk
+        # Casilla de selección para activar/desactivar la detección de movimiento
+        self.checkbox_motion_detection = tk.Checkbutton(button_frame, text="Detección de movimiento", variable=self.motion_detection_enabled, bg='#f0f0f0')
+        self.checkbox_motion_detection.pack(side=tk.LEFT, padx=5)
+
+        # Botones
         self.capture_btn = ttk.Button(button_frame, text="Capturar", command=self.capture_image)
         self.capture_btn.pack(side=tk.LEFT, padx=5)
 
         self.btn_revisar = ttk.Button(button_frame, text="Revisar", command=self.open_image_viewer)
-        self.btn_revisar.pack(side=tk.RIGHT, padx=5)
+        self.btn_revisar.pack(side=tk.LEFT, padx=5)
 
         # Etiqueta de estado para el estado del sistema
         #self.status_label = tk.Label(self.window, text="Estado del sistema: OK", fg="green", bg='#f0f0f0')
@@ -200,44 +206,37 @@ class WebcamApp:
         if ret:
             # Redimensionar la imagen capturada de la webcam a la mitad de su tamaño original
             frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
-    
+
             # Convertir a escala de grises para la detección de movimiento
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             gray = cv2.GaussianBlur(gray, (21, 21), 0)
-    
-            # Si es el primer cuadro, lo guardamos y saltamos a la siguiente iteración
-            if self.last_frame is None:
-                self.last_frame = gray
-                self.window.after(10, self.update_webcam)
-                return
 
-            # Calcular la diferencia entre el cuadro actual y el último
-            frame_delta = cv2.absdiff(self.last_frame, gray)
-            thresh = cv2.threshold(frame_delta, 25, 255, cv2.THRESH_BINARY)[1]
+            if self.motion_detection_enabled.get():
+                # Realizar detección de movimiento si la casilla está activada
+                if self.last_frame is not None:
+                    frame_delta = cv2.absdiff(self.last_frame, gray)
+                    thresh = cv2.threshold(frame_delta, 25, 255, cv2.THRESH_BINARY)[1]
+                    thresh = cv2.dilate(thresh, None, iterations=2)
+                    contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            # Dilatar el umbral para llenar los agujeros, luego encontrar contornos
-            thresh = cv2.dilate(thresh, None, iterations=2)
-            contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    for contour in contours:
+                        if cv2.contourArea(contour) > 500:  # Ajusta este valor según sea necesario
+                            print("MOVIMIENTO")
+                            if not self.capture_scheduled:
+                                self.window.after(3000, self.schedule_capture)  # Programa la captura después de 3 segundos
+                                self.capture_scheduled = True
+                            break
 
-            for contour in contours:
-                if cv2.contourArea(contour) > 500:  # Ajusta este valor según sea necesario
-                    print("MOVIMIENTO")
-                    if not self.capture_scheduled:
-                        self.window.after(3000, self.schedule_capture)  # Programa la captura después de 3 segundos
-                        self.capture_scheduled = True
-                    break
-
-            # Actualizar el último cuadro
+            # Actualizar el último cuadro para la próxima detección
             self.last_frame = gray
-    
+
             # Mostrar el cuadro redimensionado en la interfaz de usuario
             img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             img_tk = ImageTk.PhotoImage(image=img)
-    
             self.canvas_webcam.create_image(0, 0, anchor=tk.NW, image=img_tk)
-            self.canvas_webcam.img = img_tk  # Mantener una referencia
-    
+            self.canvas_webcam.img = img_tk
+
         self.window.after(10, self.update_webcam)
 
     def schedule_capture(self):
