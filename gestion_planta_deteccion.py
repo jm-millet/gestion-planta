@@ -12,6 +12,12 @@ import edge_agent_pb2 as pb2
 import time
 from playsound import playsound
 
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+from datetime import datetime, timedelta
+
+
 # Conexión a la base de datos
 conexion = mysql.connector.connect(
     host="localhost",
@@ -84,43 +90,44 @@ def detect_anomalies(stub, model_name, image_path):
 
 
 class WebcamApp:
-    def __init__(self, window, window_title):
-        self.window = window
-        self.window.title(window_title)
-        self.window.configure(background='#f0f0f0')  # Set a light grey background color
+    def __init__(self, master, title):
+        self.window = master
+        self.window.title(title)
+        self.window.configure(background='#f0f0f0')  # Establecer un color de fondo gris claro
         self.stub = stub 
 
         self.cap = cv2.VideoCapture(0)
         
-        # Initialize the list to store the last captured images
+        # Inicializar la lista para almacenar las últimas imágenes capturadas
         self.last_captured_images = []
              
-        # Layout with frames for better organization
+        # Diseño con frames para una mejor organización
         top_frame = tk.Frame(self.window, bg='#f0f0f0')
         top_frame.pack(pady=10)
 
         self.label_titulo_webcam = tk.Label(top_frame, text="IMAGEN EN DIRECTO", font=("Helvetica", 14), bg='#f0f0f0')
         self.label_titulo_webcam.pack()
 
-        self.canvas_webcam = tk.Canvas(top_frame, width=640, height=480)
+        # Reducir el tamaño del canvas de la webcam a la mitad
+        self.canvas_webcam = tk.Canvas(top_frame, width=320, height=240)
         self.canvas_webcam.pack()
   
-        # Frame for buttons
+        # Frame para los botones
         button_frame = tk.Frame(self.window, bg='#f0f0f0')
         button_frame.pack(pady=10)
 
-        # Using ttk buttons for a better appearance
+        # Botones con un aspecto mejorado usando ttk
         self.capture_btn = ttk.Button(button_frame, text="Capturar", command=self.capture_image)
         self.capture_btn.pack(side=tk.LEFT, padx=5)
 
         self.btn_revisar = ttk.Button(button_frame, text="Revisar", command=self.open_image_viewer)
         self.btn_revisar.pack(side=tk.RIGHT, padx=5)
 
-        # Status label for system status
-        self.status_label = tk.Label(self.window, text="Estado del sistema: OK", fg="green", bg='#f0f0f0')
-        self.status_label.pack(pady=10)
+        # Etiqueta de estado para el estado del sistema
+        #self.status_label = tk.Label(self.window, text="Estado del sistema: OK", fg="green", bg='#f0f0f0')
+        #self.status_label.pack(pady=10)
 
-        # Frame for displaying last captured images
+        # Frame para mostrar las últimas imágenes capturadas
         image_frame = tk.Frame(self.window, bg='#f0f0f0')
         image_frame.pack(pady=10)
 
@@ -130,27 +137,73 @@ class WebcamApp:
         self.canvas_images = tk.Canvas(image_frame, width=640, height=240)
         self.canvas_images.pack()
 
-        # Exit button with improved styling
+        # Botón de salida con un estilo mejorado
         exit_btn = ttk.Button(self.window, text="Salir", command=self.exit_application)
         exit_btn.pack(side=tk.BOTTOM, pady=10)
 
-        # Initialization for webcam update
+        # Inicialización para la actualización de la webcam
         self.update_webcam()
         
+        # Sección para el gráfico de columnas
+        self.fig = Figure(figsize=(5, 2), dpi=100)  # Aumentar ligeramente la altura
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
+        self.canvas_widget = self.canvas.get_tk_widget()
+        self.canvas_widget.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        self.update_graph()
         
+    def update_graph(self):
+        now = datetime.now()
+        start_time = now - timedelta(minutes=15)
+
+        # Preparar un diccionario para almacenar el conteo de imágenes KO por cada minuto
+        minute_counts = {minute: 0 for minute in range(-15, 0)}
+
+        cursor = conexion.cursor()
+        query = """SELECT COUNT(*) as count, MIN(timestamp)
+                   FROM tabla_imagenes
+                   WHERE estado = 'KO' AND timestamp BETWEEN %s AND %s
+                   GROUP BY YEAR(timestamp), MONTH(timestamp), DAY(timestamp), HOUR(timestamp), MINUTE(timestamp)"""
+        cursor.execute(query, (start_time, now))
+        data = cursor.fetchall()
+        cursor.close()
+    
+        for count, timestamp in data:
+            timestamp = timestamp.replace(second=0, microsecond=0)
+            minute_difference = int((timestamp - now).total_seconds() // 60)
+            if -15 <= minute_difference < 0:
+                minute_counts[minute_difference] = count
+
+        # Preparar datos para el gráfico
+        minutes = list(minute_counts.keys())
+        counts = list(minute_counts.values())
+
+        # Actualizar gráfico
+        self.ax.clear()
+        self.ax.bar(minutes, counts)
+        self.ax.set_xlabel('Minutos desde la hora actual')
+        self.ax.set_ylabel('Número Fallos')
+        self.ax.set_xticks(range(-15, 0))  # Asegurar que se muestren todos los minutos
+        self.canvas.draw()
+
+        # Programar la próxima actualización
+        self.window.after(10000, self.update_graph)
 
     def update_webcam(self):
         ret, frame = self.cap.read()
 
         if ret:
+            # Escalar la imagen capturada de la webcam
+            # Utilizando el factor de escala para ambos ejes (fx y fy)
+            frame = cv2.resize(frame, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+    
             img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
-
             img_tk = ImageTk.PhotoImage(image=img)
-
+    
             self.canvas_webcam.create_image(0, 0, anchor=tk.NW, image=img_tk)
-            self.canvas_webcam.img = img_tk  
-
+            self.canvas_webcam.img = img_tk  # Mantener una referencia
+    
         self.window.after(10, self.update_webcam)
 
     def capture_image(self):
@@ -229,8 +282,9 @@ class WebcamApp:
         conexion.close()
         # Cerrar la aplicación
         self.window.destroy()
-        channel.close()  # Cierra el canal al salir de la aplicación
         stop_model()
+        channel.close()  # Cierra el canal al salir de la aplicación
+
 
 class ImageViewerApp:
     def __init__(self, window, window_title, webcam_app):
