@@ -105,6 +105,11 @@ class WebcamApp:
         top_frame = tk.Frame(self.window, bg='#f0f0f0')
         top_frame.pack(pady=10)
 
+        # Inicializar para el control de movimiento
+        self.last_frame = None
+        self.capture_scheduled = False  # Variable para controlar si la captura está programada
+
+
         self.label_titulo_webcam = tk.Label(top_frame, text="IMAGEN EN DIRECTO", font=("Helvetica", 14), bg='#f0f0f0')
         self.label_titulo_webcam.pack()
 
@@ -134,7 +139,7 @@ class WebcamApp:
         self.label_titulo_imagenes = tk.Label(image_frame, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14), bg='#f0f0f0')
         self.label_titulo_imagenes.pack()
 
-        self.canvas_images = tk.Canvas(image_frame, width=640, height=240)
+        self.canvas_images = tk.Canvas(image_frame, width=640, height=180)
         self.canvas_images.pack()
 
         # Botón de salida con un estilo mejorado
@@ -193,10 +198,39 @@ class WebcamApp:
         ret, frame = self.cap.read()
 
         if ret:
-            # Escalar la imagen capturada de la webcam
-            # Utilizando el factor de escala para ambos ejes (fx y fy)
-            frame = cv2.resize(frame, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+            # Redimensionar la imagen capturada de la webcam a la mitad de su tamaño original
+            frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
     
+            # Convertir a escala de grises para la detección de movimiento
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.GaussianBlur(gray, (21, 21), 0)
+    
+            # Si es el primer cuadro, lo guardamos y saltamos a la siguiente iteración
+            if self.last_frame is None:
+                self.last_frame = gray
+                self.window.after(10, self.update_webcam)
+                return
+
+            # Calcular la diferencia entre el cuadro actual y el último
+            frame_delta = cv2.absdiff(self.last_frame, gray)
+            thresh = cv2.threshold(frame_delta, 25, 255, cv2.THRESH_BINARY)[1]
+
+            # Dilatar el umbral para llenar los agujeros, luego encontrar contornos
+            thresh = cv2.dilate(thresh, None, iterations=2)
+            contours, _ = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            for contour in contours:
+                if cv2.contourArea(contour) > 500:  # Ajusta este valor según sea necesario
+                    print("MOVIMIENTO")
+                    if not self.capture_scheduled:
+                        self.window.after(3000, self.schedule_capture)  # Programa la captura después de 3 segundos
+                        self.capture_scheduled = True
+                    break
+
+            # Actualizar el último cuadro
+            self.last_frame = gray
+    
+            # Mostrar el cuadro redimensionado en la interfaz de usuario
             img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             img_tk = ImageTk.PhotoImage(image=img)
@@ -205,6 +239,11 @@ class WebcamApp:
             self.canvas_webcam.img = img_tk  # Mantener una referencia
     
         self.window.after(10, self.update_webcam)
+
+    def schedule_capture(self):
+        self.capture_image()
+        self.capture_scheduled = False  # Restablecer la variable de control
+
 
     def capture_image(self):
         ret, frame = self.cap.read()
@@ -248,24 +287,28 @@ class WebcamApp:
     def update_images_canvas(self):
         self.canvas_images.delete("all")
 
+        # Añadir una línea encima de las imágenes capturadas
+        self.canvas_images.create_line(0, 10, self.canvas_images.winfo_width(), 10, fill="black")
+
         for i, (img_tk, title, estado) in enumerate(self.last_captured_images):
             x_offset = i * 213  # Ajusta este valor según sea necesario para el espaciado
 
-            # Coordenadas para el marco
-            x0, y0 = x_offset, 0
-            x1, y1 = x_offset + img_tk.width(), img_tk.height()
+            # Coordenadas para la imagen y el marco
+            x_img, y_img = x_offset, 20  # Posición inicial de la imagen ajustada debajo de la línea
+            x1, y1 = x_offset + img_tk.width(), y_img + img_tk.height()
 
             # Crear el marco dependiendo del estado
             if estado == "KO":
-                self.canvas_images.create_rectangle(x0, y0, x1, y1, outline="red", width=8)
+                self.canvas_images.create_rectangle(x_img, y_img, x1, y1, outline="red", width=8)
             else:  # Suponiendo que el otro estado es "OK"
-                self.canvas_images.create_rectangle(x0, y0, x1, y1, outline="blue", width=8)
+                self.canvas_images.create_rectangle(x_img, y_img, x1, y1, outline="blue", width=8)
 
             # Mostrar la imagen
-            self.canvas_images.create_image(x_offset, 0, anchor=tk.NW, image=img_tk)
-            # Mostrar el título y el estado
-            self.canvas_images.create_text(x_offset + 10, 160, anchor=tk.W, text=title)
-            self.canvas_images.create_text(x_offset + 10, 180, anchor=tk.W, text=f"Estado: {estado}")
+            self.canvas_images.create_image(x_img, y_img, anchor=tk.NW, image=img_tk)
+
+            # Mostrar el título y el estado con menos espacio debajo de cada imagen
+            self.canvas_images.create_text(x_offset + 10, y1 + 15, anchor=tk.W, text=title)
+            self.canvas_images.create_text(x_offset + 10, y1 + 30, anchor=tk.W, text=f"Estado: {estado}")
 
     def open_image_viewer(self):
         # Ocultar la ventana actual
