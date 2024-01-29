@@ -94,7 +94,8 @@ class WebcamApp:
     def __init__(self, master, title):
         self.window = master
         self.window.title(title)
-        self.window.configure(background='#f0f0f0')  # Establecer un color de fondo gris claro
+        self.window.configure(background='#3D5965')  # Establecer un color de fondo gris claro
+        
         self.stub = stub 
 
         self.cap = cv2.VideoCapture(0)
@@ -107,16 +108,20 @@ class WebcamApp:
             self.ser = serial.Serial(puerto, baudios, timeout=1)
             print(f"Conectado al puerto {puerto}")
             self.estado_anterior_cts = self.ser.cts
+            self.sensor = True
 
         except serial.SerialException as e:
             print(f"Error al abrir el puerto {puerto}: {e}")
-
+            self.sensor = False
+            self.estado_anterior_cts = True
+            self.estado_actual_cts = True
+            pass
         
         # Inicializar la lista para almacenar las últimas imágenes capturadas
         self.last_captured_images = []
              
         # Diseño con frames para una mejor organización
-        top_frame = tk.Frame(self.window, bg='#f0f0f0')
+        top_frame = tk.Frame(self.window, bg='#3D5965')
         top_frame.pack(pady=10)
 
         # Inicializar para el control de movimiento
@@ -124,21 +129,21 @@ class WebcamApp:
         self.capture_scheduled = False  # Variable para controlar si la captura está programada
 
 
-        self.label_titulo_webcam = tk.Label(top_frame, text="IMAGEN EN DIRECTO", font=("Helvetica", 14), bg='#f0f0f0')
+        self.label_titulo_webcam = tk.Label(top_frame, text="VIDEO CÁMARA", font=("Helvetica", 14), bg='#3D5965', fg='#f0f0f0')
         self.label_titulo_webcam.pack()
 
         # Reducir el tamaño del canvas de la webcam a la mitad
-        self.canvas_webcam = tk.Canvas(top_frame, width=320, height=240)
+        self.canvas_webcam = tk.Canvas(top_frame, width=320, height=240, bd=5, relief="flat")
         self.canvas_webcam.pack()
   
         self.motion_detection_enabled = tk.BooleanVar(value=False)  # Variable para el estado de detección de movimiento
 
         # Frame para los botones y la casilla de selección
-        button_frame = tk.Frame(self.window, bg='#f0f0f0')
+        button_frame = tk.Frame(self.window, bg='#3D5965')
         button_frame.pack(pady=10)
 
         # Casilla de selección para activar/desactivar la detección de movimiento
-        self.checkbox_motion_detection = tk.Checkbutton(button_frame, text="Detección de movimiento", variable=self.motion_detection_enabled, bg='#f0f0f0')
+        self.checkbox_motion_detection = tk.Checkbutton(button_frame, text="Detección de movimiento", variable=self.motion_detection_enabled, bg='#3D5965', highlightbackground='#3D5965', activebackground='#3D5965')
         self.checkbox_motion_detection.pack(side=tk.LEFT, padx=5)
 
         # Botones
@@ -148,18 +153,14 @@ class WebcamApp:
         self.btn_revisar = ttk.Button(button_frame, text="Revisar", command=self.open_image_viewer)
         self.btn_revisar.pack(side=tk.LEFT, padx=5)
 
-        # Etiqueta de estado para el estado del sistema
-        #self.status_label = tk.Label(self.window, text="Estado del sistema: OK", fg="green", bg='#f0f0f0')
-        #self.status_label.pack(pady=10)
-
         # Frame para mostrar las últimas imágenes capturadas
-        image_frame = tk.Frame(self.window, bg='#f0f0f0')
+        image_frame = tk.Frame(self.window, bg='#3D5965')
         image_frame.pack(pady=10)
 
-        self.label_titulo_imagenes = tk.Label(image_frame, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14), bg='#f0f0f0')
+        self.label_titulo_imagenes = tk.Label(image_frame, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14), bg='#3D5965', fg='#f0f0f0')
         self.label_titulo_imagenes.pack()
 
-        self.canvas_images = tk.Canvas(image_frame, width=640, height=180)
+        self.canvas_images = tk.Canvas(image_frame, width=640, height=180,bg='#3D5965')
         self.canvas_images.pack()
 
         # Botón de salida con un estilo mejorado
@@ -176,6 +177,7 @@ class WebcamApp:
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
         self.update_graph()
+        
         
     def update_graph(self):
         now = datetime.now()
@@ -215,6 +217,7 @@ class WebcamApp:
         self.window.after(10000, self.update_graph)
 
     def update_webcam(self):
+        
         ret, frame = self.cap.read()
 
         if ret:
@@ -222,13 +225,14 @@ class WebcamApp:
             frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
 
             #Detección paso por sensor fotoelectrico
-            self.estado_actual_cts = self.ser.cts
+            if self.sensor:
+                self.estado_actual_cts = self.ser.cts
             if self.estado_anterior_cts and not self.estado_actual_cts:
                 print("DETECCIÓN CELULA FOTOELECTRICA")
-                playsound('/home/ppt/AppGestion/beep-02.mp3')
+                playsound('/home/ppt/AppGestion/nice-camera-click-106269.mp3')
                 # Llamada a la función de captura de imagen (ajustar según tu código)
                 if not self.capture_scheduled:
-                    self.window.after(3000, self.schedule_capture)  # Programa la captura después de 3 segundos
+                    self.window.after(50, self.schedule_capture)  # Programa la captura después de 3 segundos
                     self.capture_scheduled = True
                 
             self.estado_anterior_cts = self.estado_actual_cts
@@ -260,10 +264,17 @@ class WebcamApp:
             img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             img_tk = ImageTk.PhotoImage(image=img)
-            self.canvas_webcam.create_image(0, 0, anchor=tk.NW, image=img_tk)
+            self.canvas_webcam.create_image(5, 5, anchor=tk.NW, image=img_tk)
             self.canvas_webcam.img = img_tk
 
-        self.window.after(10, self.update_webcam)
+            # Agregar la fecha y hora al Canvas
+            time_text = self.canvas_webcam.create_text(10, 10, anchor="nw", fill="white", font=("Arial", 10))
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.canvas_webcam.itemconfig(time_text, text=current_time)
+
+
+            self.window.after(10, self.update_webcam)
 
     def schedule_capture(self):
         self.capture_image()
@@ -349,8 +360,9 @@ class WebcamApp:
         # Cerrar la conexión a la base de datos
         conexion.close()
         #Cerrar puerto
-        self.ser.close()
-        print("Puerto serie cerrado")
+        if self.sensor:        
+            self.ser.close()
+            print("Puerto serie cerrado")
 
         # Cerrar la aplicación
         self.window.destroy()
