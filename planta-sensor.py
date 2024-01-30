@@ -171,7 +171,9 @@ class WebcamApp:
         self.update_webcam()
         
         # Sección para el gráfico de columnas
-        self.fig = Figure(figsize=(5, 2), dpi=100)  # Aumentar ligeramente la altura
+        self.fig = Figure(figsize=(5, 3), dpi=100)  # Aumentar ligeramente la altura
+        self.fig.subplots_adjust(bottom=0.2)  # Adjust the bottom margin
+
         self.ax = self.fig.add_subplot(111)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         self.canvas_widget = self.canvas.get_tk_widget()
@@ -207,10 +209,18 @@ class WebcamApp:
 
         # Actualizar gráfico
         self.ax.clear()
-        self.ax.bar(minutes, counts)
+        self.ax.bar(minutes, counts, color='green')
         self.ax.set_xlabel('Minutos desde la hora actual')
         self.ax.set_ylabel('Número Fallos')
         self.ax.set_xticks(range(-15, 0))  # Asegurar que se muestren todos los minutos
+
+        # Ejemplo de cómo cambiar los colores en un gráfico
+        self.ax.set_facecolor('#f0f0f0')  # Cambia el color de fondo del subplot
+        self.fig.set_facecolor('#3D5965')  # Cambia el color de fondo de la figura
+        self.ax.xaxis.label.set_color('#f0f0f0')  # Cambia el color de la etiqueta del eje X
+        self.ax.yaxis.label.set_color('#f0f0f0')  # Cambia el color de la etiqueta del eje Y
+        self.ax.set_title("ERRORES", color='#f0f0f0')  # Cambia el color del título
+
         self.canvas.draw()
 
         # Programar la próxima actualización
