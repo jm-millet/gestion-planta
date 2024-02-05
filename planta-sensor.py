@@ -160,7 +160,7 @@ class WebcamApp:
         self.label_titulo_imagenes = tk.Label(image_frame, text="ÚLTIMAS IMÁGENES CAPTURADAS", font=("Helvetica", 14), bg='#3D5965', fg='#f0f0f0')
         self.label_titulo_imagenes.pack()
 
-        self.canvas_images = tk.Canvas(image_frame, width=640, height=180,bg='#3D5965')
+        self.canvas_images = tk.Canvas(image_frame, width=640, height=180,bg='#3D5965',highlightthickness=0)
         self.canvas_images.pack()
 
         # Botón de salida con un estilo mejorado
@@ -334,7 +334,7 @@ class WebcamApp:
         self.canvas_images.delete("all")
 
         # Añadir una línea encima de las imágenes capturadas
-        self.canvas_images.create_line(0, 10, self.canvas_images.winfo_width(), 10, fill="black")
+        # self.canvas_images.create_line(0, 10, self.canvas_images.winfo_width(), 10, fill="black")
 
         for i, (img_tk, title, estado) in enumerate(self.last_captured_images):
             x_offset = i * 213 + 20  # Ajusta este valor según sea necesario para el espaciado
@@ -566,4 +566,4 @@ if __name__ == "__main__":
     app_webcam = WebcamApp(root, "Webcam App")
     root.mainloop()
     channel.close()  # Cierra el canal después de que la GUI se cierra
-
+ 
