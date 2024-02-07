@@ -100,6 +100,8 @@ class WebcamApp:
 
         self.cap = cv2.VideoCapture(0)
         
+        self.statistics_window = None  # Para saber si la ventana de estadísticas está abierta
+        
         # Inicializar puerto sensor fotoelectrico
         puerto = '/dev/ttyUSB0'
         baudios = 9600
@@ -220,12 +222,15 @@ class WebcamApp:
         new_window.title("Estadísticas")
 
         # Crear el gráfico
-        fig, ax = plt.subplots()
-        times = [(start_time.strftime("%H:%M"), end_time.strftime("%H:%M")) for start_time, end_time in intervals[::-1]]
-        ax.bar(range(len(data)), data, tick_label=[f"{start}-{end}" for start, end in times])
+        fig, ax = plt.subplots(figsize=(8*1.3, 6))  # Ajustar el tamaño aquí
+        # Modificación aquí: solo incluir el inicio de cada intervalo como etiqueta del eje X
+        tick_labels = [start_time.strftime("%H:%M") for start_time, _ in intervals[::-1]]
+        ax.bar(range(len(data)), data, tick_label=tick_labels)
         ax.set_xlabel("Tiempo")
         ax.set_ylabel("Registros KO")
         ax.set_title("Registros KO por intervalo de 15 minutos")
+        
+        ax.set_xticklabels(tick_labels, rotation=90)  # Rotación aquí
 
         # Mostrar el gráfico en la ventana de Tkinter
         canvas = FigureCanvasTkAgg(fig, master=new_window)
@@ -234,14 +239,23 @@ class WebcamApp:
 
         # Cerrar conexión a la base de datos
         self.cursor.close()
-        #self.db.close()
+        
+        self.statistics_window = new_window
 
         # Manejar el cierre de la ventana para limpiar recursos
         def on_close():
-            plt.close(fig)  # Cierra la figura de matplotlib
+            #plt.close(fig)  # Cierra la figura de matplotlib
+            plt.close()  # Cierra cualquier figura de matplotlib abierta
             new_window.destroy()
+            self.statistics_window = None  # Resetea el atributo cuando la ventana se cierra.
 
+        # Guarda la referencia a la función on_close para usarla en exit_application
+        self.statistics_window_on_close = on_close
+        # Establece on_close como el manejador del evento de cierre de la ventana
         new_window.protocol("WM_DELETE_WINDOW", on_close)
+    
+        self.statistics_window = new_window  # Guarda la referencia a la ventana
+
 
         
     def update_graph(self):
@@ -347,7 +361,8 @@ class WebcamApp:
             self.canvas_webcam.itemconfig(time_text, text=current_time)
 
 
-            self.window.after(10, self.update_webcam)
+            self.update_webcam_id = self.window.after(10, self.update_webcam)
+
 
     def schedule_capture(self):
         self.capture_image()
@@ -428,6 +443,13 @@ class WebcamApp:
         ImageViewerApp(window_viewer, "Image Viewer", self)
 
     def exit_application(self):
+        if hasattr(self, 'update_webcam_id'):
+            self.window.after_cancel(self.update_webcam_id)
+
+        # Verifica si la ventana de estadísticas está abierta y ciérrala si es necesario.
+        if self.statistics_window is not None and callable(self.statistics_window_on_close):
+            self.statistics_window_on_close()  # Llama a on_close para cerrar la ventana de estadísticas
+             
         # Liberar la cámara al cerrar la aplicación
         self.cap.release()
         # Cerrar la conexión a la base de datos
@@ -438,7 +460,7 @@ class WebcamApp:
             print("Puerto serie cerrado")
 
         # Cerrar la aplicación
-        self.window.destroy()
+        self. window.destroy()
         stop_model()
         channel.close()  # Cierra el canal al salir de la aplicación
 
