@@ -170,16 +170,79 @@ class WebcamApp:
         # Inicialización para la actualización de la webcam
         self.update_webcam()
         
-        # Sección para el gráfico de columnas
-        self.fig = Figure(figsize=(5, 3), dpi=100)  # Aumentar ligeramente la altura
-        self.fig.subplots_adjust(bottom=0.2)  # Adjust the bottom margin
+        # Sección para el gráfico de columnas y el botón "Abrir Estadísticas" en un frame contenedor
+        graph_and_button_frame = tk.Frame(self.window, bg='#3D5965')
+        graph_and_button_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True, pady=5)
 
-        self.ax = self.fig.add_subplot(111)
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
+        self.fig = Figure(figsize=(5, 3), dpi=100)
+        self.fig.subplots_adjust(bottom=0.2)
+
+        self.ax = self.fig.add_subplot(111) 
+        self.canvas = FigureCanvasTkAgg(self.fig, master=graph_and_button_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        self.canvas_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Empaquetar el botón "Abrir Estadísticas" dentro del mismo frame contenedor
+        self.open_estadisticas_btn = tk.Button(graph_and_button_frame, text="Abrir Estadísticas", command=self.show_statistics_window)
+        self.open_estadisticas_btn.pack(side=tk.TOP, pady=5)
+
         self.update_graph()
         
+    def fetch_ko_records(self, start_time, end_time):
+        """
+        Consulta a la base de datos para obtener el número de registros KO
+        en un intervalo de tiempo específico.
+        """
+        query = ("SELECT COUNT(*) FROM tabla_imagenes "
+                 "WHERE estado = 'KO' AND "
+                 "timestamp BETWEEN %s AND %s")
+        self.cursor.execute(query, (start_time, end_time))
+        result = self.cursor.fetchone()
+        return result[0] if result else 0
+
+    def show_statistics_window(self):
+        """
+        Muestra una ventana con un gráfico de columnas de registros KO.
+        """
+        # Conectar a la base de datos
+        #self.db = mysql.connector.connect(host="tu_host", user="tu_usuario", password="tu_contraseña", database="tu_base_de_datos")
+        self.cursor = conexion.cursor()
+
+        # Calcular los intervalos de tiempo
+        now = datetime.now()
+        intervals = [(now - timedelta(minutes=15*(i+1)), now - timedelta(minutes=15*i)) for i in range(15)]
+
+        # Obtener los datos
+        data = [self.fetch_ko_records(start, end) for start, end in intervals[::-1]]
+
+        # Crear la ventana
+        new_window = tk.Toplevel(self.window) # Asumiendo que self.window es la ventana principal
+        new_window.title("Estadísticas")
+
+        # Crear el gráfico
+        fig, ax = plt.subplots()
+        times = [(start_time.strftime("%H:%M"), end_time.strftime("%H:%M")) for start_time, end_time in intervals[::-1]]
+        ax.bar(range(len(data)), data, tick_label=[f"{start}-{end}" for start, end in times])
+        ax.set_xlabel("Tiempo")
+        ax.set_ylabel("Registros KO")
+        ax.set_title("Registros KO por intervalo de 15 minutos")
+
+        # Mostrar el gráfico en la ventana de Tkinter
+        canvas = FigureCanvasTkAgg(fig, master=new_window)
+        canvas.draw()
+        canvas.get_tk_widget().pack()
+
+        # Cerrar conexión a la base de datos
+        self.cursor.close()
+        #self.db.close()
+
+        # Manejar el cierre de la ventana para limpiar recursos
+        def on_close():
+            plt.close(fig)  # Cierra la figura de matplotlib
+            new_window.destroy()
+
+        new_window.protocol("WM_DELETE_WINDOW", on_close)
+
         
     def update_graph(self):
         now = datetime.now()
