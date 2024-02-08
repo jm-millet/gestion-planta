@@ -213,34 +213,28 @@ class WebcamApp:
         if self.statistics_window is None:
             self.statistics_window = tk.Toplevel(self.window)
             self.statistics_window.title("Estadísticas")
-            
-            # Crear una nueva figura y canvas para el gráfico de estadísticas, ajustando el espacio inferior
-            # Aumenta el valor de 'bottom' para dejar más espacio para las etiquetas
+
+            self.time_shift = 0  # Variable para controlar el desplazamiento en el tiempo
+
+            # Botón para disminuir el desplazamiento del tiempo (mover hacia el presente)
+            self.button_decrease_time_shift = tk.Button(self.statistics_window, text="<",
+                                                        command=lambda: self.update_time_shift(15))
+            self.button_decrease_time_shift.pack(side=tk.LEFT)
+
+            # Botón para aumentar el desplazamiento del tiempo (mover hacia el pasado)
+            self.button_increase_time_shift = tk.Button(self.statistics_window, text=">",
+                                                        command=lambda: self.update_time_shift(-15))
+            self.button_increase_time_shift.pack(side=tk.RIGHT)
+
+            # Crear una nueva figura y canvas para el gráfico de estadísticas
             self.stats_fig, self.stats_ax = plt.subplots(figsize=(8*1.3, 6))
-            self.stats_fig.subplots_adjust(bottom=0.3)  # Ajustar según necesidad
+            self.stats_fig.subplots_adjust(bottom=0.3)
             
             self.stats_canvas = FigureCanvasTkAgg(self.stats_fig, master=self.statistics_window)
             self.stats_canvas.draw()
             self.stats_canvas.get_tk_widget().pack()
 
-            def update_statistics():
-                if self.statistics_window:
-                    now = datetime.now()
-                    intervals = [(now - timedelta(minutes=15*(i+1)), now - timedelta(minutes=15*i)) for i in range(15)]
-                    data = [self.fetch_ko_records(start, end) for start, end in intervals[::-1]]
-                    tick_labels = [start_time.strftime("%Y-%m-%d %H:%M") for start_time, _ in intervals[::-1]]
-
-                    self.stats_ax.clear()
-                    self.stats_ax.bar(range(len(data)), data, tick_label=tick_labels)
-                    self.stats_ax.set_xticklabels(tick_labels, rotation=90, ha="right")
-                    self.stats_ax.set_xlabel("Fecha y Hora")
-                    self.stats_ax.set_ylabel("Registros KO")
-                    self.stats_ax.set_title("Registros KO por intervalo de 15 minutos")
-
-                    self.stats_canvas.draw()
-                    self.update_statistics_id = self.statistics_window.after(10000, update_statistics)
-
-            update_statistics()
+            self.update_statistics()  # Llamar directamente para inicializar el gráfico
 
             def on_close():
                 plt.close(self.stats_fig)
@@ -250,6 +244,29 @@ class WebcamApp:
             self.statistics_window.protocol("WM_DELETE_WINDOW", on_close)
         else:
             self.statistics_window.lift()
+
+    def update_time_shift(self, adjustment):
+        # Ajustar self.time_shift y asegurarse de que no sea negativo
+        self.time_shift += adjustment
+        if self.time_shift < 0:
+            self.time_shift = 0
+        self.update_statistics()
+
+    def update_statistics(self):
+        if self.statistics_window:
+            now = datetime.now() - timedelta(minutes=self.time_shift)
+            intervals = [(now - timedelta(minutes=15*(i+1)), now - timedelta(minutes=15*i)) for i in range(15)]
+            data = [self.fetch_ko_records(start, end) for start, end in intervals[::-1]]
+            tick_labels = [start_time.strftime("%Y-%m-%d %H:%M") for start_time, _ in intervals[::-1]]
+
+            self.stats_ax.clear()
+            self.stats_ax.bar(range(len(data)), data, tick_label=tick_labels)
+            self.stats_ax.set_xticklabels(tick_labels, rotation=90, ha="right")
+            self.stats_ax.set_xlabel("Fecha y Hora")
+            self.stats_ax.set_ylabel("Número de Anomalías")
+            self.stats_ax.set_title("HISTÓRICO DE ANOMALÍAS")
+
+            self.stats_canvas.draw()
 
         
     def update_graph(self):
