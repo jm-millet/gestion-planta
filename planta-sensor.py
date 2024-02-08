@@ -96,12 +96,19 @@ class WebcamApp:
         self.window.title(title)
         self.window.configure(background='#3D5965')  # Establecer un color de fondo gris claro
         
+        self.cursor = conexion.cursor()
+
         self.stub = stub 
 
         self.cap = cv2.VideoCapture(0)
         
         self.statistics_window = None  # Para saber si la ventana de estadísticas está abierta
-        
+        self.statistics_window_on_close = None
+
+        self.update_graph_id = None
+        self.update_statistics_id = None
+
+
         # Inicializar puerto sensor fotoelectrico
         puerto = '/dev/ttyUSB0'
         baudios = 9600
@@ -203,59 +210,46 @@ class WebcamApp:
         return result[0] if result else 0
 
     def show_statistics_window(self):
-        """
-        Muestra una ventana con un gráfico de columnas de registros KO.
-        """
-        # Conectar a la base de datos
-        #self.db = mysql.connector.connect(host="tu_host", user="tu_usuario", password="tu_contraseña", database="tu_base_de_datos")
-        self.cursor = conexion.cursor()
+        if self.statistics_window is None:
+            self.statistics_window = tk.Toplevel(self.window)
+            self.statistics_window.title("Estadísticas")
+            
+            # Crear una nueva figura y canvas para el gráfico de estadísticas, ajustando el espacio inferior
+            # Aumenta el valor de 'bottom' para dejar más espacio para las etiquetas
+            self.stats_fig, self.stats_ax = plt.subplots(figsize=(8*1.3, 6))
+            self.stats_fig.subplots_adjust(bottom=0.3)  # Ajustar según necesidad
+            
+            self.stats_canvas = FigureCanvasTkAgg(self.stats_fig, master=self.statistics_window)
+            self.stats_canvas.draw()
+            self.stats_canvas.get_tk_widget().pack()
 
-        # Calcular los intervalos de tiempo
-        now = datetime.now()
-        intervals = [(now - timedelta(minutes=15*(i+1)), now - timedelta(minutes=15*i)) for i in range(15)]
+            def update_statistics():
+                if self.statistics_window:
+                    now = datetime.now()
+                    intervals = [(now - timedelta(minutes=15*(i+1)), now - timedelta(minutes=15*i)) for i in range(15)]
+                    data = [self.fetch_ko_records(start, end) for start, end in intervals[::-1]]
+                    tick_labels = [start_time.strftime("%Y-%m-%d %H:%M") for start_time, _ in intervals[::-1]]
 
-        # Obtener los datos
-        data = [self.fetch_ko_records(start, end) for start, end in intervals[::-1]]
+                    self.stats_ax.clear()
+                    self.stats_ax.bar(range(len(data)), data, tick_label=tick_labels)
+                    self.stats_ax.set_xticklabels(tick_labels, rotation=90, ha="right")
+                    self.stats_ax.set_xlabel("Fecha y Hora")
+                    self.stats_ax.set_ylabel("Registros KO")
+                    self.stats_ax.set_title("Registros KO por intervalo de 15 minutos")
 
-        # Crear la ventana
-        new_window = tk.Toplevel(self.window) # Asumiendo que self.window es la ventana principal
-        new_window.title("Estadísticas")
+                    self.stats_canvas.draw()
+                    self.update_statistics_id = self.statistics_window.after(10000, update_statistics)
 
-        # Crear el gráfico
-        fig, ax = plt.subplots(figsize=(8*1.3, 6))  # Ajustar el tamaño aquí
-        # Modificación aquí: solo incluir el inicio de cada intervalo como etiqueta del eje X
-        tick_labels = [start_time.strftime("%H:%M") for start_time, _ in intervals[::-1]]
-        ax.bar(range(len(data)), data, tick_label=tick_labels)
-        ax.set_xlabel("Tiempo")
-        ax.set_ylabel("Registros KO")
-        ax.set_title("Registros KO por intervalo de 15 minutos")
-        
-        ax.set_xticklabels(tick_labels, rotation=90)  # Rotación aquí
+            update_statistics()
 
-        # Mostrar el gráfico en la ventana de Tkinter
-        canvas = FigureCanvasTkAgg(fig, master=new_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack()
+            def on_close():
+                plt.close(self.stats_fig)
+                self.statistics_window.destroy()
+                self.statistics_window = None
 
-        # Cerrar conexión a la base de datos
-        self.cursor.close()
-        
-        self.statistics_window = new_window
-
-        # Manejar el cierre de la ventana para limpiar recursos
-        def on_close():
-            #plt.close(fig)  # Cierra la figura de matplotlib
-            plt.close()  # Cierra cualquier figura de matplotlib abierta
-            new_window.destroy()
-            self.statistics_window = None  # Resetea el atributo cuando la ventana se cierra.
-
-        # Guarda la referencia a la función on_close para usarla en exit_application
-        self.statistics_window_on_close = on_close
-        # Establece on_close como el manejador del evento de cierre de la ventana
-        new_window.protocol("WM_DELETE_WINDOW", on_close)
-    
-        self.statistics_window = new_window  # Guarda la referencia a la ventana
-
+            self.statistics_window.protocol("WM_DELETE_WINDOW", on_close)
+        else:
+            self.statistics_window.lift()
 
         
     def update_graph(self):
@@ -301,7 +295,7 @@ class WebcamApp:
         self.canvas.draw()
 
         # Programar la próxima actualización
-        self.window.after(10000, self.update_graph)
+        self.update_graph_id = self.window.after(10000, self.update_graph)
 
     def update_webcam(self):
         
@@ -443,13 +437,26 @@ class WebcamApp:
         ImageViewerApp(window_viewer, "Image Viewer", self)
 
     def exit_application(self):
+        
+        if self.update_graph_id:
+            self.window.after_cancel(self.update_graph_id)
+        if self.update_statistics_id:
+            self.statistics_window.after_cancel(self.update_statistics_id)
+
         if hasattr(self, 'update_webcam_id'):
-            self.window.after_cancel(self.update_webcam_id)
+                self.window.after_cancel(self.update_webcam_id)
 
         # Verifica si la ventana de estadísticas está abierta y ciérrala si es necesario.
         if self.statistics_window is not None and callable(self.statistics_window_on_close):
             self.statistics_window_on_close()  # Llama a on_close para cerrar la ventana de estadísticas
-             
+        
+        if self.statistics_window_on_close is not None and callable(self.statistics_window_on_close):
+            self.statistics_window_on_close()
+
+        # Finalizar la aplicación
+        self.window.quit()  # Termina el mainloop de Tkinter
+
+        
         # Liberar la cámara al cerrar la aplicación
         self.cap.release()
         # Cerrar la conexión a la base de datos
